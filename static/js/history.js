@@ -42,7 +42,6 @@ async function loadHistoryData() {
 
 function fillSourceFilter(records) {
     const sourceFilter = document.getElementById("source-filter");
-
     const existingSources = new Set();
 
     records.forEach(record => {
@@ -63,31 +62,67 @@ function applyFilters() {
     const selectedSource = document.getElementById("source-filter").value;
     const selectedStatus = document.getElementById("status-filter").value;
     const selectedMetric = document.getElementById("metric-filter").value;
+    const selectedOperator = document.getElementById("operator-filter").value;
+    const selectedNumber = document.getElementById("number-filter").value;
     const startDate = document.getElementById("start-date-filter").value;
     const endDate = document.getElementById("end-date-filter").value;
 
-    let filteredRecords = allHistoryRecords.filter(record => {
+    const filteredRecords = allHistoryRecords.filter(record => {
         const sourceMatch = selectedSource === "all" || record.device_name === selectedSource;
         const statusMatch = selectedStatus === "all" || getStatus(record) === selectedStatus.toLowerCase();
         const dateMatch = isInsideDateRange(record.timestamp, startDate, endDate);
+        const numberMatch = checkNumberFilter(record, selectedMetric, selectedOperator, selectedNumber);
 
-        return sourceMatch && statusMatch && dateMatch;
+        return sourceMatch && statusMatch && dateMatch && numberMatch;
     });
 
-    displayHistoryRecords(filteredRecords, selectedMetric);
+    displayHistoryRecords(filteredRecords);
+}
+
+function checkNumberFilter(record, selectedMetric, selectedOperator, selectedNumber) {
+    if (selectedMetric === "all") {
+        return true;
+    }
+
+    if (selectedOperator === "none" || selectedNumber === "") {
+        return true;
+    }
+
+    const recordValue = Number(record[selectedMetric]);
+    const filterValue = Number(selectedNumber);
+
+    if (isNaN(recordValue) || isNaN(filterValue)) {
+        return false;
+    }
+
+    if (selectedOperator === "greater") {
+        return recordValue > filterValue;
+    }
+
+    if (selectedOperator === "less") {
+        return recordValue < filterValue;
+    }
+
+    if (selectedOperator === "equal") {
+        return recordValue === filterValue;
+    }
+
+    return true;
 }
 
 function resetFilters() {
     document.getElementById("source-filter").value = "all";
     document.getElementById("status-filter").value = "all";
     document.getElementById("metric-filter").value = "all";
+    document.getElementById("operator-filter").value = "none";
+    document.getElementById("number-filter").value = "";
     document.getElementById("start-date-filter").value = "";
     document.getElementById("end-date-filter").value = "";
 
     displayHistoryRecords(allHistoryRecords);
 }
 
-function displayHistoryRecords(records, selectedMetric = "all") {
+function displayHistoryRecords(records) {
     const tableBody = document.getElementById("history-table-body");
     const historyCount = document.getElementById("history-count");
 
@@ -108,26 +143,14 @@ function displayHistoryRecords(records, selectedMetric = "all") {
         const status = getStatus(record);
         const warningMessage = getWarningMessage(record);
 
-        const cpuValue = selectedMetric === "all" || selectedMetric === "cpu"
-            ? `${record.cpu_usage ?? 0}%`
-            : "-";
-
-        const memoryValue = selectedMetric === "all" || selectedMetric === "memory"
-            ? `${record.memory_usage ?? 0}%`
-            : "-";
-
-        const diskValue = selectedMetric === "all" || selectedMetric === "disk"
-            ? `${record.disk_usage ?? 0}%`
-            : "-";
-
         const row = document.createElement("tr");
 
         row.innerHTML = `
             <td>${formatTimestamp(record.timestamp)}</td>
             <td>${record.device_name || "Unknown"}</td>
-            <td>${cpuValue}</td>
-            <td>${memoryValue}</td>
-            <td>${diskValue}</td>
+            <td>${record.cpu_usage ?? 0}%</td>
+            <td>${record.memory_usage ?? 0}%</td>
+            <td>${record.disk_usage ?? 0}%</td>
             <td><span class="status-badge status-${status}">${capitalize(status)}</span></td>
             <td>${warningMessage}</td>
         `;

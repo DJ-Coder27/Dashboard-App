@@ -42,10 +42,25 @@
             <label for="metric-filter">Metric</label>
             <select id="metric-filter" name="metric">
                 <option value="all">All</option>
-                <option value="cpu">CPU</option>
-                <option value="memory">Memory</option>
-                <option value="disk">Disk</option>
+                <option value="cpu_usage">CPU</option>
+                <option value="memory_usage">Memory</option>
+                <option value="disk_usage">Disk</option>
             </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="operator-filter">Condition</label>
+            <select id="operator-filter" name="operator">
+                <option value="none">No number filter</option>
+                <option value="greater">Greater than</option>
+                <option value="less">Less than</option>
+                <option value="equal">Equal to</option>
+            </select>
+        </div>
+
+        <div class="filter-group">
+            <label for="number-filter">Number</label>
+            <input type="number" id="number-filter" name="number" placeholder="Example: 80">
         </div>
 
         <div class="filter-actions">
