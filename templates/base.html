@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KNW Monitoring Dashboard - {{ page_title }}</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+    <header class="top-header">
+        <div>
+            <h1>KNW Monitoring Dashboard</h1>
+            <p>Monitoring overview for connected systems</p>
+        </div>
+
+        <div class="user-area">
+            <span>user@knowledgehub.local</span>
+            <button class="logout-button">Logout</button>
+        </div>
+    </header>
+
+    <nav class="main-nav">
+        <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+        <a href="{{ url_for('history') }}" class="nav-link">History</a>
+    </nav>
+
+    <main class="page-container">
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    {% block scripts %}
+    {% endblock %}
+
+</body>
+</html>

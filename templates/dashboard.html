@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="page-title">
+    <h2>Dashboard</h2>
+    <p>Current monitoring status of all connected sources.</p>
+</section>
+
+<section class="summary-grid">
+    <div class="summary-card">
+        <h3>Total Sources</h3>
+        <p id="total-sources">0</p>
+    </div>
+
+    <div class="summary-card online">
+        <h3>Online</h3>
+        <p id="online-sources">0</p>
+    </div>
+
+    <div class="summary-card warning">
+        <h3>Warning</h3>
+        <p id="warning-sources">0</p>
+    </div>
+
+    <div class="summary-card offline">
+        <h3>Offline</h3>
+        <p id="offline-sources">0</p>
+    </div>
+</section>
+
+<section class="content-card">
+    <div class="section-header">
+        <h3>Monitored Sources</h3>
+        <button id="refresh-button">Refresh</button>
+    </div>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Source Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Last Update</th>
+                    <th>CPU</th>
+                    <th>Memory</th>
+                    <th>Disk</th>
+                    <th>Active Warning</th>
+                </tr>
+            </thead>
+            <tbody id="sources-table-body">
+                <tr>
+                    <td colspan="8">Loading monitoring data...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="dashboard-bottom-grid">
+    <div class="content-card">
+        <h3>Selected Source Details</h3>
+
+        <div id="source-details" class="details-box">
+            <p>Select a source from the table to view more details.</p>
+        </div>
+    </div>
+
+    <div class="content-card">
+        <h3>Recent Activity</h3>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Source Name</th>
+                        <th>Event</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="recent-activity-body">
+                    <tr>
+                        <td colspan="4">Loading recent activity...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}
