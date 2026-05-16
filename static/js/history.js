@@ -196,7 +196,21 @@ function isInsideDateRange(timestamp, startDate, endDate) {
 }
 
 function getStatus(record) {
-    return (record.status || "unknown").toLowerCase();
+    const status = (record.status || "unknown").toLowerCase();
+
+    if (status === "ok" || status === "healthy" || status === "online") {
+        return "online";
+    }
+
+    if (status === "warning" || status === "warn" || status === "caution") {
+        return "warning";
+    }
+
+    if (status === "offline" || status === "error" || status === "failed" || status === "down") {
+        return "offline";
+    }
+
+    return "unknown";
 }
 
 function getWarningMessage(record) {

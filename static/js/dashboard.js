@@ -103,7 +103,7 @@ function showSourceDetails(source) {
         <p><strong>Memory Usage:</strong> ${source.memory_usage ?? 0}%</p>
         <p><strong>Disk Usage:</strong> ${source.disk_usage ?? 0}%</p>
         <p><strong>Last Update:</strong> ${formatTimestamp(source.timestamp)}</p>
-        <p><strong>Warning:</strong> ${getWarningMessage(source)}</p>
+        <p><strong>Warning:</strong> ${warningMessageText(source)}</p>
     `;
 }
 
@@ -139,7 +139,21 @@ function updateRecentActivity(sources) {
 }
 
 function getStatus(source) {
-    return (source.status || "unknown").toLowerCase();
+    const status = (source.status || "unknown").toLowerCase();
+
+    if (status === "ok" || status === "healthy" || status === "online") {
+        return "online";
+    }
+
+    if (status === "warning" || status === "warn" || status === "caution") {
+        return "warning";
+    }
+
+    if (status === "offline" || status === "error" || status === "failed" || status === "down") {
+        return "offline";
+    }
+
+    return "unknown";
 }
 
 function getWarningMessage(source) {
@@ -168,6 +182,11 @@ function getWarningMessage(source) {
     }
 
     return "-";
+}
+
+function warningMessageText(source) {
+    const message = getWarningMessage(source);
+    return message === "-" ? "None" : message;
 }
 
 function createEventMessage(source) {
