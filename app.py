@@ -1,17 +1,131 @@
 import os
 import json
 import uuid
+from datetime import timedelta
 from functools import wraps
-from flask import Flask, render_template, redirect, url_for, jsonify, request, session
-import requests
+
 import msal
+import requests
+from flask import Flask, render_template, redirect, url_for, jsonify, request, session
 
 app = Flask(__name__)
 
+# Flask session settings
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-this-secret-key")
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SECURE"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+
+# Monitoring API settings
 API_BASE_URL = os.getenv("API_BASE_URL", "").rstrip("/")
 AGENT_API_KEY = os.getenv("AGENT_API_KEY", "")
 AGENT_METRICS_FILE = "/var/lib/kw-monitoring/agent_metrics.json"
 
+# Microsoft Entra ID settings
+ENTRA_CLIENT_ID = os.getenv("ENTRA_CLIENT_ID", "")
+ENTRA_CLIENT_SECRET = os.getenv("ENTRA_CLIENT_SECRET", "")
+ENTRA_TENANT_ID = os.getenv("ENTRA_TENANT_ID", "")
+ENTRA_REDIRECT_URI = os.getenv(
+    "ENTRA_REDIRECT_URI",
+    "https://dashboard.knowledgehub.local/callback"
+)
+ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
+ENTRA_SCOPES = os.getenv("ENTRA_SCOPES", "User.Read").split()
+
+def is_entra_configured():
+    return all([
+        ENTRA_CLIENT_ID,
+        ENTRA_CLIENT_SECRET,
+        ENTRA_TENANT_ID,
+        ENTRA_REDIRECT_URI
+    ])
+
+def build_msal_app():
+    return msal.ConfidentialClientApplication(
+        ENTRA_CLIENT_ID,
+        authority=ENTRA_AUTHORITY,
+        client_credential=ENTRA_CLIENT_SECRET
+    )
+
+def safe_next_url(next_url):
+    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+        return next_url
+
+    return url_for("dashboard")
+
+def login_required(route_function):
+    @wraps(route_function)
+    def wrapper(*args, **kwargs):
+        if not session.get("user"):
+            return redirect(url_for("login", next=request.path))
+
+        return route_function(*args, **kwargs)
+
+    return wrapper
+
+@app.route("/login")
+def login():
+    if not is_entra_configured():
+        return jsonify({
+            "error": "Microsoft Entra ID authentication is not configured on the server."
+        }), 500
+
+    session["state"] = str(uuid.uuid4())
+    session["next_url"] = safe_next_url(request.args.get("next"))
+
+    auth_url = build_msal_app().get_authorization_request_url(
+        scopes=ENTRA_SCOPES,
+        state=session["state"],
+        redirect_uri=ENTRA_REDIRECT_URI
+    )
+
+    return redirect(auth_url)
+
+@app.route("/callback")
+def callback():
+    if request.args.get("state") != session.get("state"):
+        return jsonify({"error": "Invalid authentication state."}), 400
+
+    if request.args.get("error"):
+        return jsonify({
+            "error": request.args.get("error"),
+            "description": request.args.get("error_description")
+        }), 400
+
+    if not request.args.get("code"):
+        return jsonify({"error": "No authorization code was returned by Microsoft Entra ID."}), 400
+
+    result = build_msal_app().acquire_token_by_authorization_code(
+        request.args["code"],
+        scopes=ENTRA_SCOPES,
+        redirect_uri=ENTRA_REDIRECT_URI
+    )
+
+    if "error" in result:
+        return jsonify({
+            "error": result.get("error"),
+            "description": result.get("error_description")
+        }), 400
+
+    claims = result.get("id_token_claims", {})
+
+    session.permanent = True
+    session["user"] = {
+        "name": claims.get("name", "Authenticated user"),
+        "email": claims.get("preferred_username") or claims.get("email") or claims.get("upn", ""),
+        "user_id": claims.get("oid", "")
+    }
+
+    next_url = session.pop("next_url", url_for("dashboard"))
+    session.pop("state", None)
+
+    return redirect(next_url)
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 @app.route("/agent/metrics", methods=["POST"])
 def receive_agent_metrics():
@@ -27,11 +141,11 @@ def receive_agent_metrics():
             return jsonify({"error": "No JSON data received"}), 400
 
         required_fields = [
-                  "device_name",
-                  "cpu_usage",
-                  "memory_usage",
-                  "disk_usage",
-                  "status"
+            "device_name",
+            "cpu_usage",
+            "memory_usage",
+            "disk_usage",
+            "status"
         ]
 
         missing_fields = [field for field in required_fields if field not in data]
@@ -49,7 +163,7 @@ def receive_agent_metrics():
                 file_content = file.read().strip()
 
                 if file_content:
-                   agent_metrics = json.loads(file_content)
+                    agent_metrics = json.loads(file_content)
 
         device_name = data["device_name"]
 
@@ -115,13 +229,18 @@ def sort_metrics_by_timestamp(metrics):
 
 @app.route("/")
 def index():
-    return redirect(url_for("dashboard"))
+    if session.get("user"):
+        return redirect(url_for("dashboard"))
+
+    return redirect(url_for("login"))
 
 @app.route("/dashboard")
+@login_required
 def dashboard():
     return render_template("dashboard.html", page_title="Dashboard")
 
 @app.route("/history")
+@login_required
 def history():
     return render_template("history.html", page_title="History")
 
@@ -141,6 +260,7 @@ def health():
     }), 200
 
 @app.route("/data/sources/latest")
+@login_required
 def latest_sources():
     try:
         metrics = get_metrics_from_api()
@@ -173,6 +293,7 @@ def latest_sources():
         }), 500
 
 @app.route("/data/source/<device_name>/latest")
+@login_required
 def latest_source(device_name):
     try:
         metrics = get_metrics_from_api()
@@ -200,6 +321,7 @@ def latest_source(device_name):
         }), 500
 
 @app.route("/data/history")
+@login_required
 def history_data():
     try:
         metrics = get_metrics_from_api()
