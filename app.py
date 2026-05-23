@@ -1,7 +1,10 @@
 import os
 import json
-from flask import Flask, render_template, redirect, url_for, jsonify, request
+import uuid
+from functools import wraps
+from flask import Flask, render_template, redirect, url_for, jsonify, request, session
 import requests
+import msal
 
 app = Flask(__name__)
 

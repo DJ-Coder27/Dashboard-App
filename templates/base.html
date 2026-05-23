@@ -14,8 +14,10 @@
             <h1>KNW Monitoring Dashboard</h1>
 
             <div class="user-area">
-                <span>user@knowledgehub.local</span>
-                <button class="logout-button">Logout</button>
+                {% if session.get("user") %}
+                    <span>{{ session["user"]["email"] }}</span>
+                    <a href="{{ url_for('logout') }}" class="logout-button">Logout</a>
+                {% endif %}
             </div>
         </div>
     </header>
