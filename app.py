@@ -1,10 +1,76 @@
 import os
+import json
 from flask import Flask, render_template, redirect, url_for, jsonify, request
 import requests
 
 app = Flask(__name__)
 
 API_BASE_URL = os.getenv("API_BASE_URL", "").rstrip("/")
+AGENT_API_KEY = os.getenv("AGENT_API_KEY", "")
+AGENT_METRICS_FILE = "/var/lib/kw-monitoring/agent_metrics.json"
+
+
+@app.route("/agent/metrics", methods=["POST"])
+def receive_agent_metrics():
+    try:
+        provided_key = request.headers.get("X-Agent-Key", "")
+
+        if not AGENT_API_KEY or provided_key != AGENT_API_KEY:
+            return jsonify({"error": "Unauthorized"}), 401
+
+        data = request.get_json(silent=True)
+
+        if not data:
+            return jsonify({"error": "No JSON data received"}), 400
+
+        required_fields = [
+                  "device_name",
+                  "cpu_usage",
+                  "memory_usage",
+                  "disk_usage",
+                  "status"
+        ]
+
+        missing_fields = [field for field in required_fields if field not in data]
+
+        if missing_fields:
+            return jsonify({
+                "error": "Missing fields",
+                "missing_fields": missing_fields
+            }), 400
+
+        agent_metrics = {}
+
+        if os.path.exists(AGENT_METRICS_FILE):
+            with open(AGENT_METRICS_FILE, "r") as file:
+                file_content = file.read().strip()
+
+                if file_content:
+                   agent_metrics = json.loads(file_content)
+
+        device_name = data["device_name"]
+
+        agent_metrics[device_name] = {
+            "device_name": device_name,
+            "cpu_usage": data["cpu_usage"],
+            "memory_usage": data["memory_usage"],
+            "disk_usage": data["disk_usage"],
+            "status": data["status"]
+        }
+
+        with open(AGENT_METRICS_FILE, "w") as file:
+            json.dump(agent_metrics, file, indent=4)
+
+        return jsonify({
+            "message": "Agent metric received",
+            "device_name": device_name
+        }), 201
+
+    except Exception as error:
+        return jsonify({
+            "error": "Could not receive agent metric",
+            "details": str(error)
+        }), 500
 
 def get_metrics_from_api():
     if not API_BASE_URL:
