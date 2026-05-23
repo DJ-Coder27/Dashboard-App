@@ -3,6 +3,7 @@ import json
 import uuid
 from datetime import timedelta
 from functools import wraps
+from urllib.parse import urlencode
 
 import msal
 import requests
@@ -30,6 +31,12 @@ ENTRA_REDIRECT_URI = os.getenv(
     "ENTRA_REDIRECT_URI",
     "https://dashboard.knowledgehub.local/callback"
 )
+
+POST_LOGOUT_REDIRECT_URI = os.getenv(
+    "POST_LOGOUT_REDIRECT_URI",
+    "https://dashboard.knowledgehub.local/signed-out"
+)
+
 ENTRA_AUTHORITY = f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}" if ENTRA_TENANT_ID else ""
 ENTRA_SCOPES = os.getenv("ENTRA_SCOPES", "User.Read").split()
 
@@ -53,6 +60,7 @@ def safe_next_url(next_url):
         return next_url
 
     return url_for("dashboard")
+
 
 def login_required(route_function):
     @wraps(route_function)
@@ -125,7 +133,65 @@ def callback():
 @app.route("/logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+
+    if not ENTRA_TENANT_ID:
+        return redirect(url_for("signed_out"))
+
+    logout_params = urlencode({
+        "post_logout_redirect_uri": POST_LOGOUT_REDIRECT_URI
+    })
+
+    return redirect(
+        f"https://login.microsoftonline.com/{ENTRA_TENANT_ID}/oauth2/v2.0/logout?{logout_params}"
+    )
+
+@app.route("/signed-out")
+def signed_out():
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Signed out</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                background: #f4f6f8;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }
+
+            .box {
+                background: white;
+                padding: 32px;
+                border-radius: 12px;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+                text-align: center;
+            }
+
+            a {
+                display: inline-block;
+                margin-top: 16px;
+                padding: 10px 16px;
+                background: #1f2937;
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="box">
+            <h2>You have been signed out</h2>
+            <p>Your dashboard session has been cleared.</p>
+            <a href="/login">Sign in again</a>
+        </div>
+    </body>
+    </html>
+    """
 
 @app.route("/agent/metrics", methods=["POST"])
 def receive_agent_metrics():
@@ -354,6 +420,5 @@ def history_data():
             "error": "Could not load history data",
             "details": str(error)
         }), 500
-
 if __name__ == "__main__":
     app.run(debug=True)
